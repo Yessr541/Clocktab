@@ -97,6 +97,9 @@ body.moving #bar,body.moving #hint{opacity:0;pointer-events:none}
 .bars{width:min(70vw,720px);display:flex;flex-direction:column;gap:12px}
 .bars div{height:12px;background:rgba(255,255,255,.2);border-radius:8px;overflow:hidden}
 .bars i{display:block;height:100%;width:0;background:var(--fg);border-radius:8px}
+#clist{display:flex;flex-direction:column;gap:8px;width:min(420px,92vw);max-height:30vh;overflow:auto;padding:0}
+.th{position:relative}
+.th b{position:absolute;top:2px;right:7px;cursor:pointer;font-size:12px;opacity:.8}
 </style>
 </head>
 <body>
@@ -149,7 +152,7 @@ body.moving #bar,body.moving #hint{opacity:0;pointer-events:none}
   </section>
 
   <section class="view" id="v-countdowns">
-    <div class="big" style="font-size:calc(min(9vw,14vh))">Countdowns</div>
+    <div class="big" id="cfeat" style="font-size:calc(min(11vw,18vh) * var(--size))">--:--:--</div><div id="cfname" style="font-size:calc(min(4vw,5vh));opacity:.85;font-family:var(--font);letter-spacing:.06em"></div>
     <div class="row"><input class="num" id="cname" type="text" placeholder="Event name" style="width:190px;font-size:16px"><input class="num" id="cdate" type="datetime-local" style="width:220px;font-size:16px"><button class="btn" id="cadd">Add</button><button class="btn" id="cny">New Year</button></div>
     <div id="clist"></div>
   </section>
@@ -177,6 +180,9 @@ body.moving #bar,body.moving #hint{opacity:0;pointer-events:none}
   <label>Show seconds <input type="checkbox" id="sSec" checked></label>
   <label>Show date <input type="checkbox" id="sDate" checked></label>
   <label>Alarm &amp; timer sound <input type="checkbox" id="sSnd" checked></label>
+  <div class="lbl">My themes</div>
+  <div class="row" style="justify-content:flex-start;margin:8px 0"><input type="text" id="tname" placeholder="Theme name" style="width:150px"><button class="btn" id="tsave">Save current</button></div>
+  <div class="thg" id="mythemes"></div>
   <div class="lbl">Themes</div>
   <div class="thg" id="themes"></div>
   <div class="lbl">Background</div>
@@ -211,7 +217,7 @@ function apply(){
   var b=$('bg');b.style.background=S.img?'url('+S.img+') center/cover':(S.bgc||BGS[S.bg]);
   [].forEach.call(sw.children,function(e,i){e.classList.toggle('on',!S.img&&!S.bgc&&i===S.bg)});
   $('sStyle').value=S.style;$('sFont').value=S.font;$('sColor').value=S.color;$('sSize').value=S.size;$('s24').checked=S.h24;$('sSec').checked=S.sec;$('sDate').checked=S.date;$('sSnd').checked=S.snd;
-  $('sFx').value=S.fx||'none';$('v-clock').classList.toggle('outline',S.fx==='outline');$('v-clock').classList.toggle('neon',S.fx==='neon');
+  ['v-clock','v-countdowns'].forEach(function(id){$(id).classList.toggle('outline',S.fx==='outline');$(id).classList.toggle('neon',S.fx==='neon')});$('sFx').value=S.fx||'none';
   $('date').style.display=S.date?'':'none';
   build();tick();save();
 }
@@ -352,6 +358,13 @@ $('cadd').onclick=function(){var v=$('cdate').value;if(!v)return;addC($('cname')
 $('cny').onclick=function(){addC('New Year',new Date(new Date().getFullYear()+1,0,1).getTime())};
 $('clist').onclick=function(e){var x=e.target.dataset.x;if(x===undefined)return;CD.splice(+x,1);saveC();drawC()};
 
+/* countdowns: clock-style display + alarm-style list */
+var CSELO=null;
+function shortT(l){var s=Math.floor(l/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d>0?d+'d '+h+'h':h>0?h+'h '+m+'m':m+'m '+(s%60)+'s'}
+function drawC(){$('clist').innerHTML=CD.map(function(c,i){return '<div class="aitem" data-i="'+i+'" style="cursor:pointer"><span>'+esc(c.name||'Countdown')+' <span class="lbl">'+new Date(c.at).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})+'</span></span><span><span class="cl lbl"></span> <button data-x="'+i+'" title="Delete">&#x2715;</button></span></div>'}).join('');tickC()}
+function tickC(){var now=Date.now(),idx=CSELO?CD.indexOf(CSELO):-1;if(idx<0){for(var i=0;i<CD.length;i++){if(CD[i].at>now){idx=i;break}}if(idx<0&&CD.length)idx=0}var c=CD[idx],fe=$('cfeat'),fn=$('cfname');if(!c){fe.textContent='--:--:--';fn.textContent='Add a countdown below'}else{var l=c.at-now;if(l<=0){fe.textContent='00:00:00';fn.textContent=(c.name||'Countdown')+' - done'}else{var s=Math.floor(l/1000),d=Math.floor(s/86400);fe.innerHTML=(d>0?d+'<small>d</small> ':'')+p2(Math.floor(s%86400/3600))+':'+p2(Math.floor(s%3600/60))+(S.sec?':'+p2(s%60):'');fn.textContent=(c.name||'Countdown')+' - '+new Date(c.at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}}[].forEach.call(document.querySelectorAll('#clist .aitem'),function(e){var k=CD[+e.dataset.i];if(!k)return;var r=k.at-now;e.style.outline=(+e.dataset.i===idx)?'2px solid rgba(255,255,255,.7)':'none';e.querySelector('.cl').textContent=r<=0?'Done':shortT(r)});CD.forEach(function(k){if(k.at<=now&&!k.fired){k.fired=1;saveC();ring(k.name||'Countdown finished')}})}
+$('clist').onclick=function(e){var x=e.target.dataset.x;if(x!==undefined){if(CD[+x]===CSELO)CSELO=null;CD.splice(+x,1);saveC();drawC();return}var r=e.target.closest('.aitem');if(r){CSELO=CD[+r.dataset.i];tickC()}};
+
 /* move clock (only from settings) */
 var mv=false,drag=null,cv=$('v-clock');
 function setMove(on){mv=on;document.body.classList.toggle('moving',on);$('mvbar').style.display=on?'flex':'none';if(on){document.querySelector('[data-v=clock]').click();$('settings').classList.remove('open')}else{$('settings').classList.add('open')}wake()}
@@ -361,6 +374,12 @@ cv.addEventListener('pointerup',function(){if(drag){drag=null;save()}});
 $('sMove').onclick=function(){setMove(true)};
 $('mvDone').onclick=function(){setMove(false)};
 $('mvReset').onclick=$('sResetPos').onclick=function(){S.cx=0;S.cy=0;apply()};
+
+/* my themes */
+var MT=[];try{MT=JSON.parse(localStorage.getItem('clocktab-mythemes')||'[]')}catch(e){}
+function saveMT(){try{localStorage.setItem('clocktab-mythemes',JSON.stringify(MT));return true}catch(e){return false}}
+function drawMT(){var box=$('mythemes');box.innerHTML='';if(!MT.length){box.innerHTML='<div class="lbl" style="grid-column:1/-1">Nothing saved yet.</div>';return}MT.forEach(function(t,i){var b=document.createElement('div');b.className='th';b.textContent=t.n;b.style.background=t.img?'url('+t.img+') center/cover':t.bg;b.style.color=t.fg;b.style.fontFamily='"'+t.f+'"';b.onclick=function(){S.style=t.s;S.fx=t.fx;S.font=t.f;S.color=t.fg;S.size=t.size;S.img=t.img||null;S.bgc=t.img?null:t.bg;apply()};var x=document.createElement('b');x.textContent='\u2715';x.title='Delete';x.onclick=function(e){e.stopPropagation();MT.splice(i,1);saveMT();drawMT()};b.appendChild(x);box.appendChild(b)})}
+$('tsave').onclick=function(){var n=$('tname').value.trim()||('My theme '+(MT.length+1));MT.push({n:n,bg:S.bgc||BGS[S.bg],img:S.img||null,fg:S.color,f:S.font,s:S.style,fx:S.fx||'none',size:S.size});if(!saveMT()){MT.pop();$('tname').value='';$('tname').placeholder='Storage full';return}$('tname').value='';$('tname').placeholder='Saved!';drawMT()};
 
 /* world clock */
 var WC=null;try{WC=JSON.parse(localStorage.getItem('clocktab-wc'))}catch(e){}
@@ -382,7 +401,7 @@ setInterval(function(){
   if(T.run){var l=(T.end-Date.now())/1000;$('tdisp').textContent=fmt(l);document.title=fmt(l)+' \u00b7 Timer';if(l<=0){T.run=false;T.left=0;$('tgo').textContent='Start';$('tdisp').textContent='00:00:00';ring('Time\u2019s up!')}}
 },250);
 (function raf(){if(W.run)$('sdisp').innerHTML=wf(W.t+Date.now()-W.st);requestAnimationFrame(raf)})();
-readT();drawA();drawC();drawW();apply();
+readT();drawA();drawC();drawW();drawMT();apply();
 })();
 </script>
 </body>
